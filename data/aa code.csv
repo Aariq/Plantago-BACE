@@ -1,0 +1,27 @@
+Abbreviation,1_letter,Amino_acid_name
+Ala,A,Alanine
+Arg,R,Arginine
+Asn,N,Asparagine
+Asp,D,Aspartic acid
+Cys,C,Cysteine
+Gln,Q,Glutamine
+Glu,E,Glutamic acid
+Gly,G,Glycine
+His,H,Histidine
+Ile,I,Isoleucine
+Leu,L,Leucine
+Lys,K,Lysine
+Met,M,Methionine
+Phe,F,Phenylalanine
+Pro,P,Proline
+Pyl,O,Pyrrolysine
+Ser,S,Serine
+Sec,U,Selenocysteine
+Thr,T,Threonine
+Trp,W,Tryptophan
+Tyr,Y,Tyrosine
+Val,V,Valine
+GABA,,GABA
+CITR,,citrulline
+Cys-Cys,,cystine
+Hse,,Homoserine
