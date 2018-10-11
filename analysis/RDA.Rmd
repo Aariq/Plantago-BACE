@@ -44,6 +44,7 @@ aa.tidy <- aa %>%
 # Save explanatory variable names for easy filtering later
 expvars <- c("sample_id", "precip", "temp")
 
+# Autoscale data
 aa.scaled <- aa.tidy %>% 
   mutate_at(vars(-expvars), scale)
 
@@ -67,7 +68,7 @@ gc.tidy <- gc %>%
   mutate(temp = case_when(temp == 1 ~ 0.8,
                           temp == 2 ~ 2.4,
                           TRUE ~ temp))
-
+# Autoscale data
 gc.scaled <- gc.tidy %>% 
   mutate_at(vars(-expvars), scale)
 
@@ -204,7 +205,7 @@ Succinic acid, fumaric acid, succinic acid, catalpol, myo-inositol, and sucrose 
 
 # Publication Quality Plots
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(ggpubr)
 ```
 
@@ -220,6 +221,9 @@ gc.loading.data <- MVA.load(gc.RDA)$loads %>%
   mutate(metab = str_trunc(Metabolite, width = 3, ellipsis = "") %>% toupper()) %>% 
   mutate(metab = case_when(Metabolite == "malonic_acid" ~ "MALO",
                            Metabolite == "succinic_acid" ~ "SUCC",
+                           Metabolite == "fructose_total" ~ "FRC",
+                           Metabolite == "glucose" ~ "GLC",
+                           Metabolite == "myo_inositol" ~ "INO",
                            TRUE ~ metab)) %>%
   mutate(m = `Constr. comp. 2`/`Constr. comp. 1`,
          xplus = sqrt(1 / (1 + m^2)),
@@ -259,7 +263,7 @@ GC score plot:
 gc.score.plot <- ggplot(gc.score.data, aes(x = `Constr. comp. 1`, y = `Constr. comp. 2`,
                        fill = factor(temp),
                        color = factor(temp),
-                       shape = precip,
+                       shape = fct_relevel(precip, "ambient"),
                        linetype = factor(temp))) +
   stat_chull(geom = "polygon", alpha = 0.4, color = "black") +
   geom_point(color = "black") +
@@ -276,17 +280,23 @@ gc.score.plot
 GC loading plot:
 
 ```{r}
+#function so 0 is printed with no decimal places on the axis
+scaleFun <- function(x){ifelse(x == 0, "0", x)}
+
 gc.loading.plot <- ggplot(gc.loading.data) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
   geom_text(aes(x = `Constr. comp. 1` + xplus * 0.05,
                 y = `Constr. comp. 2` + yplus * 0.05,
-                label = metab)) + 
+                label = metab), size = 3) + 
   # xlim(-2*.35, 1.6*.35) +
   # ylim(-3*.34, 2.7*.35) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
-  labs(x = "Constr. comp. 1", y = "Constr. comp. 2")
+  labs(x = "Constr. comp. 1", y = "Constr. comp. 2") +
+  scale_x_continuous(labels=scaleFun) +
+  scale_y_continuous(labels = scaleFun)
+gc.loading.plot
 ```
 
 
@@ -296,7 +306,7 @@ AA score plot:
 aa.score.plot <- ggplot(aa.score.data, aes(x = `Constr. comp. 1`, y = `Constr. comp. 2`,
                        fill = factor(temp),
                        color = factor(temp),
-                       shape = precip,
+                       shape = fct_relevel(precip, "ambient"),
                        linetype = factor(temp))) +
   stat_chull(geom = "polygon", alpha = 0.4, color = "black") +
   geom_point(color = "black") +
@@ -314,17 +324,17 @@ aa.score.plot
 
 AA loading plot:
 ```{r}
-# s <- 0.2
 aa.loading.plot <- ggplot(aa.loading.data) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
   geom_text(aes(x = `Constr. comp. 1` + xplus * 0.02,
                 y = `Constr. comp. 2` + yplus * 0.02,
-                label = Abbreviation)) +
+                label = Abbreviation), size = 3) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
-  labs(x = "Constr. comp. 1", y = "Constr. comp. 2") #+
-  # ylim(-6*s, 2.5*s) + xlim(-1.8*s, 4*s)
+  labs(x = "Constr. comp. 1", y = "Constr. comp. 2") +
+  scale_x_continuous(labels=scaleFun) +
+  scale_y_continuous(labels = scaleFun)
 aa.loading.plot
 ```
 
