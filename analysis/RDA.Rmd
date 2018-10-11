@@ -15,6 +15,7 @@ library(RVAideMemoire) # Functions needed: MVA.synt, MVA.anova, pairwise.factorf
                        #                   MVA.plot
 library(HDoutliers)
 library(MVN)
+library(cowplot)
 ```
 
 # Data pre-processing
@@ -260,22 +261,22 @@ gc.score.plot <- ggplot(gc.score.data, aes(x = `Constr. comp. 1`, y = `Constr. c
                        color = factor(temp),
                        shape = precip,
                        linetype = factor(temp))) +
-  stat_chull(geom = "polygon", alpha = 0.3) +
+  stat_chull(geom = "polygon", alpha = 0.4, color = "black") +
   geom_point(color = "black") +
   scale_shape_manual("Precipitation", values = shapes) +
   scale_color_manual("Temperature", values = colors) +
   scale_fill_manual("Temperature", values = colors) +
-  # xlim(-2, 1.6) +
-  # ylim(-3, 2.7) +
+  scale_linetype_discrete("Temperature") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(panel.grid = element_blank()) +
+  guides(fill = guide_legend(override.aes = list(shape = NA)))
 gc.score.plot
 ```
 
 GC loading plot:
 
 ```{r}
-ggplot(gc.loading.data) +
+gc.loading.plot <- ggplot(gc.loading.data) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
   geom_text(aes(x = `Constr. comp. 1` + xplus * 0.05,
@@ -297,31 +298,50 @@ aa.score.plot <- ggplot(aa.score.data, aes(x = `Constr. comp. 1`, y = `Constr. c
                        color = factor(temp),
                        shape = precip,
                        linetype = factor(temp))) +
-  stat_chull(geom = "polygon", alpha = 0.3) +
+  stat_chull(geom = "polygon", alpha = 0.4, color = "black") +
   geom_point(color = "black") +
   scale_shape_manual("Precipitation", values = shapes) +
   scale_color_manual("Temperature", values = colors) +
   scale_fill_manual("Temperature", values = colors) +
+  scale_linetype_discrete("Temperature") +
   theme_bw() +
-  theme(panel.grid = element_blank())
+  theme(panel.grid = element_blank(),
+        legend.position = "left") +
+  guides(fill = guide_legend(override.aes = list(shape = NA))) #+
+  # ylim(-6, 2.5) + xlim(-1.8, 4)
 aa.score.plot
 ```
 
 AA loading plot:
 ```{r}
-ggplot(aa.loading.data) +
+# s <- 0.2
+aa.loading.plot <- ggplot(aa.loading.data) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
   geom_text(aes(x = `Constr. comp. 1` + xplus * 0.02,
                 y = `Constr. comp. 2` + yplus * 0.02,
                 label = Abbreviation)) +
-    # geom_text(aes(x = `Constr. comp. 1`,
-    #             y = `Constr. comp. 2`,
-    #             label = Abbreviation), vjust = "outward", hjust = "outward") + 
   theme_bw() +
   theme(panel.grid = element_blank()) +
-  labs(x = "Constr. comp. 1", y = "Constr. comp. 2")
+  labs(x = "Constr. comp. 1", y = "Constr. comp. 2") #+
+  # ylim(-6*s, 2.5*s) + xlim(-1.8*s, 4*s)
+aa.loading.plot
 ```
 
+```{r}
+library(cowplot)
+leg <- get_legend(aa.score.plot)
+fig <- plot_grid(gc.score.plot + theme(legend.position = "none"),
+                 gc.loading.plot,
+                 aa.score.plot + theme(legend.position = "none"),
+                 aa.loading.plot,
+                 ncol = 2, nrow = 2,
+                 labels = c("(a)", "(b)", "(c)", "(d)"),
+                 vjust = 1,
+                 axis = "lb", align = "v")
+
+fig2 <- plot_grid(leg, fig, rel_widths = c(1, 5), axis = "t", align = "h")
+save_plot(here("figs", "fig2.png"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
+```
 
 
