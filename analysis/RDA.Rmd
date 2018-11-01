@@ -288,7 +288,7 @@ gc.loading.plot <- ggplot(gc.loading.data) +
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
   geom_text(aes(x = `Constr. comp. 1` + xplus * 0.05,
                 y = `Constr. comp. 2` + yplus * 0.05,
-                label = metab), size = 3) + 
+                label = metab), size = 2.5) + 
   # xlim(-2*.35, 1.6*.35) +
   # ylim(-3*.34, 2.7*.35) +
   theme_bw() +
@@ -329,7 +329,7 @@ aa.loading.plot <- ggplot(aa.loading.data) +
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
   geom_text(aes(x = `Constr. comp. 1` + xplus * 0.02,
                 y = `Constr. comp. 2` + yplus * 0.02,
-                label = Abbreviation), size = 3) +
+                label = Abbreviation), size = 2.5) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
   labs(x = "Constr. comp. 1", y = "Constr. comp. 2") +
