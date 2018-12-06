@@ -1,0 +1,85 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+library(car)
+library(tidyverse)
+library(readxl)
+library(here)
+```
+
+```{r}
+N <- read_excel(here("data", "Nitrogen_BACE.xlsx"))
+N %>% group_by(precip, temp) %>% summarize(count = n())
+```
+
+```{r}
+N<-N %>% 
+  mutate(temp.correct = case_when(temp == 2 ~ 2.4,
+                                  temp == 1 ~ 0.8,
+                                  TRUE ~ temp))
+
+m <- lm(`%N` ~ precip*temp.correct, data = N)
+Anova(m)
+```
+
+```{r}
+m2 <- lm(`C/N` ~ precip*temp.correct, data = N)
+Anova(m2)
+```
+
+```{r}
+m4 <- lm(`%C` ~ precip*temp.correct, data = N)
+Anova(m4)
+```
+
+
+
+# Longest leaf
+
+```{r}
+leaf <- read_xlsx(here("data", "Orians Sample key.xlsx")) %>% dplyr::select(-`X__1`)
+```
+```{r}
+leaf <- leaf %>% mutate(temp.correct = case_when(`Temp trtmt (Celsius)` == 2 ~ 2.4,
+                                  `Temp trtmt (Celsius)` == 1 ~ 0.8,
+                                  TRUE ~ `Temp trtmt (Celsius)`),
+                        precip = ifelse(`Precipitation treatment` == "Wet", "Ambient", `Precipitation treatment`)) %>% 
+  filter(!is.na(`#of Leaves`))
+```
+
+```{r}
+m3 <- lm(`#of Leaves` ~ precip*temp.correct, data = leaf)
+Anova(m3)
+```
+```{r}
+m4 <- lm(`Length of Longest Leaf (cm)` ~ precip*temp.correct, data = leaf)
+Anova(m4)
+```
+
+# Aucubin and catalpol
+
+```{r}
+AC <- read_csv(here("data", "Aucubin and Catalpol concentrations.csv"))
+```
+
+```{r}
+AC <- AC %>% 
+  separate(X1, into = c("precip", "temp", "sampleID")) %>% 
+  mutate(temp.correct = case_when(as.numeric(temp) == 2 ~ 2.4,
+                                  as.numeric(temp) == 1 ~ 0.8,
+                                  TRUE ~ as.numeric(temp)))
+  
+```
+
+```{r}
+AC
+auc.m <- lm(`AUC [% DW]` ~ temp.correct*precip, data = AC)
+Anova(auc.m)
+```
+```{r}
+cat.m <- lm(`CAT [% DW]` ~ temp.correct*precip, data = AC)
+Anova(cat.m)
+```
+

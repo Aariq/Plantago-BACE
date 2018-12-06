@@ -16,6 +16,8 @@ library(RVAideMemoire) # Functions needed: MVA.synt, MVA.anova, pairwise.factorf
 library(HDoutliers)
 library(MVN)
 library(cowplot)
+library(ggrepel)
+library(glue)
 ```
 
 # Data pre-processing
@@ -45,10 +47,15 @@ aa.tidy <- aa %>%
 expvars <- c("sample_id", "precip", "temp")
 
 # Autoscale data
-aa.scaled <- aa.tidy %>% 
+aa.scaled <- aa.tidy %>%
   mutate_at(vars(-expvars), scale)
 
-aa.scaled
+# set.seed(100)
+# randos <- rnorm(100, mean = 0.0001, sd = 0.0001)
+# 
+# aa.scaled <- aa.tidy %>%
+#   mutate_at(vars(-expvars), ~ifelse(.==0, sample(randos), .)) %>% 
+#   mutate_at(vars(-expvars), scale)
 ```
 
 ## Secondary Metabolites
@@ -69,10 +76,15 @@ gc.tidy <- gc %>%
                           temp == 2 ~ 2.4,
                           TRUE ~ temp))
 # Autoscale data
-gc.scaled <- gc.tidy %>% 
+gc.scaled <- gc.tidy %>%
   mutate_at(vars(-expvars), scale)
 
-gc.scaled
+# set.seed(200)
+# randos <- rnorm(100, mean = 0.0001, sd = 0.0001)
+# 
+# gc.scaled <- gc.tidy %>%
+#   mutate_at(vars(-expvars), ~ifelse(.==0, sample(randos), .)) %>%
+#   mutate_at(vars(-expvars), scale)
 ```
 
 # Checking for multivariate normality
@@ -135,22 +147,21 @@ MVA.anova(aa.RDA)
 ```
 Only precipitation is significant. The interaction is marginally significatn (p = 0.072)
 
+
 ## Plot:
 
 ```{r fig.height=4.5, fig.width=4.5}
-MVA.plot(aa.RDA,fac = factor(aa.scaled$precip):factor(aa.scaled$temp),
-         drawextaxes = FALSE,
-         # col = c("red", "blue"),
-         main = "RDA of amino acids. Significant effect of precip",
-         main.pos = "topleft")
-# MVA.plot(aa.RDA, "loading",
-#          main = "Loadings for amino acid RDA",
+# MVA.plot(aa.RDA,fac = factor(aa.scaled$precip):factor(aa.scaled$temp),
+#          drawextaxes = FALSE,
+#          # col = c("red", "blue"),
+#          main = "RDA of amino acids. Significant effect of precip",
 #          main.pos = "topleft")
-MVA.plot(aa.RDA, "corr",
-         fac = factor(aa.scaled$precip):factor(aa.scaled$temp),
-         main = "Correlations plot for amino acid RDA",
-         main.pos = "topleft",
-         set = 2)
+# 
+# MVA.plot(aa.RDA, "corr",
+#          fac = factor(aa.scaled$precip):factor(aa.scaled$temp),
+#          main = "Correlations plot for amino acid RDA",
+#          main.pos = "topleft",
+#          set = 2)
 ```
 
 All the amino acids except tryptophan are higher in wet plants.  Tryptophan concentration is correlated with dry:4º
@@ -184,20 +195,25 @@ MVA.anova(gc.RDA)
 ```
 Precipitation is significant with a significant interaction between precip and temperature.
 
+5. Pairwise permutation tests.  This is false discovery rate adjusted p-values for all pairwise comparisons of combinations of precip and temperature treatments. At high temperatures, there are more significant p-values for comparisons between wet and dry (the diagonal).
+
+```{r}
+pairwise.factorfit(gc.RDA, factor(gc.tidy$temp):factor(gc.tidy$precip))
+```
 
 ## Plots:
 
 ```{r fig.height=4.5, fig.width=4.5}
-MVA.plot(gc.RDA, 
-         fac = factor(gc.tidy$precip):factor(gc.tidy$temp),
-         drawextaxes = FALSE,
-         main = "RDA of secondary metabolites. Significant effect of precip",
-         main.pos = "topleft")
-
-MVA.plot(gc.RDA, "corr",
-         main = "Correlations plot for secondary metabolite RDA",
-         main.pos = "topleft",
-         set = 2)
+# MVA.plot(gc.RDA, 
+#          fac = factor(gc.tidy$precip):factor(gc.tidy$temp),
+#          drawextaxes = FALSE,
+#          main = "RDA of secondary metabolites. Significant effect of precip",
+#          main.pos = "topleft")
+# 
+# MVA.plot(gc.RDA, "corr",
+#          main = "Correlations plot for secondary metabolite RDA",
+#          main.pos = "topleft",
+#          set = 2)
 ```
 
 Succinic acid, fumaric acid, succinic acid, catalpol, myo-inositol, and sucrose are correlated with wet plants.  Citric acid, sorbitol and malic acid are correlated with dry plants.  Aucubin is correlated with 0 degree warming.
@@ -210,14 +226,19 @@ library(ggpubr)
 ```
 
 ```{r}
+# Extract scores
 gc.scores <- MVA.scores(gc.RDA)
-gc.score.data <- bind_cols(gc.scaled %>% select(sample_id, precip, temp), gc.scores$coord) %>% 
+# Combine with experimental treatments
+gc.score.data <- bind_cols(gc.scaled %>%
+                             select(sample_id, precip, temp), gc.scores$coord) %>% 
+  # Rename factors for better plotting labels
   mutate(precip = fct_recode(precip, ambient = "wet", drought = "dry"),
          temp = fct_recode(factor(temp), "ambient" = "0", "+ ~0.8 ºC" = "0.8",
                            "+ ~2.4 ºC" = "2.4", "+ ~4 ºC" = "4"))
-
+# Extract loading data
 gc.loading.data <- MVA.load(gc.RDA)$loads %>% 
   rownames_to_column(var = "Metabolite") %>% 
+  # Abbreviate metabolites.  For most its just the first 3 letters
   mutate(metab = str_trunc(Metabolite, width = 3, ellipsis = "") %>% toupper()) %>% 
   mutate(metab = case_when(Metabolite == "malonic_acid" ~ "MALO",
                            Metabolite == "succinic_acid" ~ "SUCC",
@@ -225,34 +246,46 @@ gc.loading.data <- MVA.load(gc.RDA)$loads %>%
                            Metabolite == "glucose" ~ "GLC",
                            Metabolite == "myo_inositol" ~ "INO",
                            TRUE ~ metab)) %>%
+  # Did some crazy geometry to figure out how to put the labels in front of the arrows
   mutate(m = `Constr. comp. 2`/`Constr. comp. 1`,
          xplus = sqrt(1 / (1 + m^2)),
          yplus = abs(m * xplus)) %>% 
   mutate(xplus = ifelse(sign(`Constr. comp. 1`) == -1, xplus*-1, xplus),
          yplus = ifelse(sign(`Constr. comp. 2`) == -1, yplus*-1, yplus))
-  
+```  
 
-
+```{r}
+# Extract scores
 aa.scores <- MVA.scores(aa.RDA)
-aa.score.data <- bind_cols(aa.scaled %>% select(sample_id, precip, temp), aa.scores$coord) %>% 
+# Combine with experimental treatments
+aa.score.data <- bind_cols(aa.scaled %>%
+                             select(sample_id, precip, temp), aa.scores$coord) %>% 
+  # Rename factors
   mutate(precip = fct_recode(precip, ambient = "wet", drought = "dry"),
          temp = fct_recode(factor(temp), "ambient" = "0", "+ ~0.8 ºC" = "0.8",
                            "+ ~2.4 ºC" = "2.4", "+ ~4 ºC" = "4"))
 
+# Read in spreadsheet of abreviations for amino acids
 aa.code <- read_csv(here("data", "aa code.csv")) %>% 
   mutate(Amino_acid_name = tolower(Amino_acid_name),
          Abbreviation = toupper(Abbreviation))
 
+# Extract loadings
 aa.load.data <- MVA.load(aa.RDA)$loads %>% 
   rownames_to_column(var = "AminoAcid") %>% 
-  mutate(AminoAcid = str_replace(AminoAcid, "_", " ")) %>% 
+  mutate(AminoAcid = str_replace(AminoAcid, "_", " ")) %>%  #get rid of underscores
+  # Do crazy geometry to figure out how to put labels in front of the arrows
   mutate(m = `Constr. comp. 2`/`Constr. comp. 1`,
          xplus = sqrt(1 / (1 + m^2)),
          yplus = abs(m * xplus)) %>% 
   mutate(xplus = ifelse(sign(`Constr. comp. 1`) == -1, xplus*-1, xplus),
          yplus = ifelse(sign(`Constr. comp. 2`) == -1, yplus*-1, yplus))
-aa.loading.data <- right_join(aa.code, aa.load.data, by = c("Amino_acid_name" = "AminoAcid"))
 
+# Join with aa abreviations
+aa.loading.data <- right_join(aa.code, aa.load.data, by = c("Amino_acid_name" = "AminoAcid"))
+```
+```{r}
+# shapes and colors for plots
 shapes <- c("ambient" = 22, "drought" = 24)
 colors <- c("ambient" = "#55297B", "+ ~0.8 ºC" = "#64B22A", "+ ~2.4 ºC" = "#FBF029", "+ ~4 ºC" = "#E5431E")
 ```
@@ -273,29 +306,59 @@ gc.score.plot <- ggplot(gc.score.data, aes(x = `Constr. comp. 1`, y = `Constr. c
   scale_linetype_discrete("Temperature") +
   theme_bw() +
   theme(panel.grid = element_blank()) +
-  guides(fill = guide_legend(override.aes = list(shape = NA)))
+  guides(fill = guide_legend(override.aes = list(shape = NA))) +
+  labs(x = glue("Constrained comp. 1 ({MVA.synt(gc.RDA)[[2]]$tab[1, 2] %>% round(2)}%)"),
+       y = glue("Constrained comp. 2 ({MVA.synt(gc.RDA)[[2]]$tab[2, 2] %>% round(2)}%)"))
 gc.score.plot
 ```
 
 GC loading plot:
+```{r}
+gc.cordata <- left_join(gc.score.data, gc.scaled %>% select(-precip, -temp)) %>% 
+  gather(-sample_id, -precip, -temp, -`Constr. comp. 1`, -`Constr. comp. 2`, key = compound, value = conc) %>% 
+  group_by(compound) %>% 
+  summarize(cor1 = cor(conc, `Constr. comp. 1`),
+            p1 = cor.test(conc, `Constr. comp. 1`)$p.value,
+            cor2 = cor(conc, `Constr. comp. 2`),
+            p2 = cor.test(conc, `Constr. comp. 2`)$p.value) %>% 
+  mutate(FDR.p1 = p.adjust(p1, method = "fdr"), FDR.p2 = p.adjust(p2, method = "fdr"),
+         sig.1 = FDR.p1 < 0.05,
+         sig.2 = FDR.p2 < 0.05,
+         sig.either = sig.1 | sig.2) %>% 
+  rename(Metabolite = compound)
+gc.loading.data <- left_join(gc.loading.data, gc.cordata)
+```
 
 ```{r}
 #function so 0 is printed with no decimal places on the axis
 scaleFun <- function(x){ifelse(x == 0, "0", x)}
 
-gc.loading.plot <- ggplot(gc.loading.data) +
+gc.loading.plot <- ggplot(gc.loading.data, aes(color = sig.either)) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
-  geom_text(aes(x = `Constr. comp. 1` + xplus * 0.05,
-                y = `Constr. comp. 2` + yplus * 0.05,
-                label = metab), size = 2.5) + 
-  # xlim(-2*.35, 1.6*.35) +
-  # ylim(-3*.34, 2.7*.35) +
+  # geom_text(aes(x = `Constr. comp. 1` + xplus * 0.05,
+  #               y = `Constr. comp. 2` + yplus * 0.05,
+  #               label = metab), size = 2.5) + 
+  geom_label_repel(aes(x = `Constr. comp. 1`,
+                       y = `Constr. comp. 2`,
+                       label = metab),
+                   min.segment.length = 0,
+                   size = 2.4,
+                   point.padding = 0.1, # should it reppel away from the tip of the arrow? NA = no
+                   segment.alpha = 0.6,
+                   segment.size = 0.3,
+                   label.padding = 0.15,
+                   nudge_x = gc.loading.data$xplus * 0.015,
+                   nudge_y = gc.loading.data$yplus * 0.015) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
   labs(x = "Constr. comp. 1", y = "Constr. comp. 2") +
-  scale_x_continuous(labels=scaleFun) +
-  scale_y_continuous(labels = scaleFun)
+  scale_x_continuous(labels=scaleFun, limits = c(-0.4, 0.5)) +
+  scale_y_continuous(labels = scaleFun, limits = c(-0.6, 0.8)) +
+  scale_color_manual(values = c("TRUE" = "black", "FALSE" = "grey50")) +
+  labs(x = glue("Constrained comp. 1 ({MVA.synt(gc.RDA)[[2]]$tab[1, 2] %>% round(2)}%)"),
+       y = glue("Constrained comp. 2 ({MVA.synt(gc.RDA)[[2]]$tab[2, 2] %>% round(2)}%)")) +
+  theme(legend.position = "none")
 gc.loading.plot
 ```
 
@@ -317,24 +380,60 @@ aa.score.plot <- ggplot(aa.score.data, aes(x = `Constr. comp. 1`, y = `Constr. c
   theme_bw() +
   theme(panel.grid = element_blank(),
         legend.position = "left") +
-  guides(fill = guide_legend(override.aes = list(shape = NA))) #+
-  # ylim(-6, 2.5) + xlim(-1.8, 4)
+  guides(fill = guide_legend(override.aes = list(shape = NA))) +
+  labs(x = glue("Constrained comp. 1 ({MVA.synt(aa.RDA)[[2]]$tab[1, 2] %>% round(2)}%)"),
+       y = glue("Constrained comp. 2 ({MVA.synt(aa.RDA)[[2]]$tab[2, 2] %>% round(2)}%)"))
 aa.score.plot
 ```
 
 AA loading plot:
 ```{r}
-aa.loading.plot <- ggplot(aa.loading.data) +
+# get correlation data between compounds and scores.
+aa.cordata <- left_join(aa.score.data, aa.scaled %>% select(-precip, -temp)) %>% 
+  gather(-sample_id, -precip, -temp, -`Constr. comp. 1`, -`Constr. comp. 2`, key = compound, value = conc) %>% 
+  group_by(compound) %>% 
+  summarize(cor1 = cor(conc, `Constr. comp. 1`),
+            p1 = cor.test(conc, `Constr. comp. 1`)$p.value,
+            cor2 = cor(conc, `Constr. comp. 2`),
+            p2 = cor.test(conc, `Constr. comp. 2`)$p.value) %>% 
+  mutate(FDR.p1 = p.adjust(p1, method = "fdr"), FDR.p2 = p.adjust(p2, method = "fdr"),
+         sig.1 = FDR.p1 < 0.05,
+         sig.2 = FDR.p2 < 0.05,
+         sig.either = sig.1 | sig.2) %>% # are scaled compound concentrations correlated significantly with at least one axis?
+  rename(Amino_acid_name = compound) %>% 
+  mutate(Amino_acid_name = str_replace(Amino_acid_name, "_", " "))
+
+#join with loading data
+aa.loading.data <- left_join(aa.loading.data, aa.cordata)
+```
+
+```{r}
+aa.loading.plot <- ggplot(aa.loading.data, aes(color = sig.either)) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
-  geom_text(aes(x = `Constr. comp. 1` + xplus * 0.02,
-                y = `Constr. comp. 2` + yplus * 0.02,
-                label = Abbreviation), size = 2.5) +
+  # geom_text(aes(x = `Constr. comp. 1` + xplus * 0.02,
+  #               y = `Constr. comp. 2` + yplus * 0.02,
+  #               label = Abbreviation), size = 2.5) +
+  geom_label_repel(aes(x = `Constr. comp. 1`,
+                       y = `Constr. comp. 2`,
+                       label = Abbreviation),
+                   min.segment.length = 0,
+                   size = 2.4,
+                   point.padding = 0.1,
+                   segment.alpha = 0.6,
+                   segment.size = 0.3,
+                   label.padding = 0.15,
+                   nudge_x = aa.loading.data$xplus * 0.015,
+                   nudge_y = aa.loading.data$yplus * 0.015) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
   labs(x = "Constr. comp. 1", y = "Constr. comp. 2") +
-  scale_x_continuous(labels=scaleFun) +
-  scale_y_continuous(labels = scaleFun)
+  scale_x_continuous(labels = scaleFun, limits = c(-0.09, 0.31)) +
+  scale_y_continuous(labels = scaleFun, limits = c(-0.55, 0.4)) +
+  scale_color_manual(values = c("TRUE" = "black", "FALSE" = "grey50")) +
+  labs(x = glue("Constrained comp. 1 ({MVA.synt(aa.RDA)[[2]]$tab[1, 2] %>% round(2)}%)"),
+       y = glue("Constrained comp. 2 ({MVA.synt(aa.RDA)[[2]]$tab[2, 2] %>% round(2)}%)")) +
+  theme(legend.position = "none")
 aa.loading.plot
 ```
 
@@ -351,7 +450,10 @@ fig <- plot_grid(gc.score.plot + theme(legend.position = "none"),
                  axis = "lb", align = "v")
 
 fig2 <- plot_grid(leg, fig, rel_widths = c(1, 5), axis = "t", align = "h")
-save_plot(here("figs", "fig2.png"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
+# save_plot(here("figs", "fig2.png"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
+save_plot(here("figs", "fig2-repel.jpg"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
+save_plot(here("figs", "fig2-repel.pdf"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
 ```
+
 
 
