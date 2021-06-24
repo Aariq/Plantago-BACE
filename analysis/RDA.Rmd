@@ -19,6 +19,7 @@ library(MVN)
 library(cowplot)
 library(ggrepel)
 library(glue)
+set.seed(459) #for reproducibility of permutation tests
 ```
 
 # Data pre-processing
@@ -349,7 +350,8 @@ gc.loading.plot <-
                    segment.size = 0.3,
                    label.padding = 0.15,
                    nudge_x = gc.loading.data$xplus * 0.015,
-                   nudge_y = gc.loading.data$yplus * 0.015) +
+                   nudge_y = gc.loading.data$yplus * 0.015,
+                   seed = 123) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
   labs(x = "Constr. comp. 1", y = "Constr. comp. 2") +
@@ -422,7 +424,8 @@ aa.loading.plot <-
                    segment.size = 0.3,
                    label.padding = 0.15,
                    nudge_x = aa.loading.data$xplus * 0.015,
-                   nudge_y = aa.loading.data$yplus * 0.015) +
+                   nudge_y = aa.loading.data$yplus * 0.015,
+                   seed = 123) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
   labs(x = "Constr. comp. 1", y = "Constr. comp. 2") +

@@ -24,8 +24,8 @@ Number of permutations: 999
 Model: rda(formula = aa.scaled %>% select(-expvars) ~ precip * temp, data = aa.scaled)
             Df Variance       F Pr(>F)    
 precip       1   5.6379 16.6317  0.001 ***
-temp         1   0.3069  0.9054  0.368    
-precip:temp  1   0.8265  2.4381  0.083 .  
+temp         1   0.3069  0.9054  0.398    
+precip:temp  1   0.8265  2.4381  0.077 .  
 Residual    42  14.2372                   
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
@@ -57,8 +57,8 @@ Number of permutations: 999
 Model: rda(formula = gc.scaled %>% select(-expvars) ~ precip * temp, data = gc.scaled)
             Df Variance       F Pr(>F)    
 precip       1   2.2473 10.6417  0.001 ***
-temp         1   0.3594  1.7018  0.115    
-precip:temp  1   0.5160  2.4434  0.025 *  
+temp         1   0.3594  1.7018  0.097 .  
+precip:temp  1   0.5160  2.4434  0.022 *  
 Residual    42   8.8695                   
 ---
 Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
