@@ -4,6 +4,7 @@ output:
   html_notebook: 
     code_folding: hide
 ---
+
 ```{r message=FALSE, warning=FALSE}
 library(tidyverse)
 library(here)
@@ -22,32 +23,31 @@ library(glue)
 
 # Data pre-processing
 
-First I read in the amino acid and secondary metabolite data and format them such that each row is an observation and columns are metabolites and treatment information.  Then I center and scale the metabolite data. The example from Hervé et al. used a log-ratio transformation, but I don't think it's necessary.
+First I read in the amino acid and secondary metabolite data and format them such that each row is an observation and columns are metabolites and treatment information.
+Then I center and scale the metabolite data.
+The example from Hervé et al. used a log-ratio transformation, but I don't think it's necessary.
+
+Updated to use updated data!
 
 ## Amino Acids
 
 ```{r}
-aa <- read_excel(here("data", "amino acids.xlsx"), sheet = "Transposed values")
-aa.tidy <- aa %>% 
-  clean_names() %>% 
-  slice(-1) %>% 
-  select(-amino_acid, -x_1, -x_2, -x_3, -x_4) %>% 
-  rename(sample_id = bace_samples) %>% 
-  select(sample_id, treatment, everything()) %>% 
-  separate(treatment,into = c("precip", "temp")) %>% 
-  mutate(temp = as.numeric(temp)) %>% 
+aa.raw <- read_csv(here("data", "Colin_UHPLCFLD_met_for_PCA.csv"))
+
+aa <-
+  aa.raw %>% 
+  separate(X1, into = c("precip", "temp", "sample_id")) %>% 
+  mutate(temp = as.numeric(temp)) %>%
   #temperatures are actually +0, +0.8, +2.4, and +4
   mutate(temp = case_when(temp == 1 ~ 0.8,
                           temp == 2 ~ 2.4,
-                          TRUE ~ temp)) %>% 
-  # typo
-  rename(asparagine = asparatine)
+                          TRUE ~ temp))
 
 # Save explanatory variable names for easy filtering later
 expvars <- c("sample_id", "precip", "temp")
 
 # Autoscale data
-aa.scaled <- aa.tidy %>%
+aa.scaled <- aa %>%
   mutate_at(vars(-expvars), scale)
 
 # set.seed(100)
@@ -61,22 +61,19 @@ aa.scaled <- aa.tidy %>%
 ## Secondary Metabolites
 
 ```{r}
-gc <- read_excel(here("data", "GC Results.xlsx"), sheet = "transposed-IS")
-gc.tidy <- gc %>%
-  clean_names %>% 
-  select(-precip) %>% 
-  separate(treatment, into = c("precip", "temp")) %>% 
-  mutate(temp = as.numeric(temp)) %>% 
-  select(sample_id = sample, precip, temp, everything()) %>% 
-  filter(!is.na(sample_id)) %>% 
-  mutate(sample_id = as.character(sample_id)) %>% 
-  mutate(sucrose = as.double(sucrose)) %>%  #read in as character due to summary table below data in excel
-    #temperatures are actually +0, +0.8, +2.4, and +4
+gc.raw <- read_csv(here("data", "Colin_GCFID_met_for_PCA.csv"))
+
+gc <- 
+  gc.raw %>% 
+  separate(X1, into = c("precip", "temp", "sample_id")) %>% 
+  mutate(temp = as.numeric(temp)) %>%
+  #temperatures are actually +0, +0.8, +2.4, and +4
   mutate(temp = case_when(temp == 1 ~ 0.8,
                           temp == 2 ~ 2.4,
                           TRUE ~ temp))
+
 # Autoscale data
-gc.scaled <- gc.tidy %>%
+gc.scaled <- gc %>%
   mutate_at(vars(-expvars), scale)
 
 # set.seed(200)
@@ -89,64 +86,73 @@ gc.scaled <- gc.tidy %>%
 
 # Checking for multivariate normality
 
-The GC data pass tests for multivariate normality, but the amino acid data don't.  I think this is because there are a lot of zeroes in the amino acid data. I tried a log tranformation and a centered log ratio transformation and both made it worse. 
+The GC data pass tests for multivariate normality, but the amino acid data don't.
+I think this is because there are a lot of zeroes in the amino acid data.
+I tried a log tranformation and a centered log ratio transformation and both made it worse.
 
 ```{r include=FALSE}
-gc.result <- mvn(gc.tidy %>% select(-sample_id, -temp), subset = "precip")
+gc.result <- mvn(gc %>% select(-sample_id, -temp), subset = "precip")
 gc.result$multivariateNormality
 
-aa.result <- mvn(aa.tidy %>% select(-sample_id, -temp), subset = "precip")
+aa.result <- mvn(aa %>% select(-sample_id, -temp), subset = "precip")
 aa.result$multivariateNormality
 
 #does log tranformation help?
-aa.log <- aa.tidy %>%
+aa.log <- aa %>%
   mutate_at(vars(-expvars), ~. + 0.0001 %>% log())
 aa.log.results <- mvn(aa.log %>% select(-expvars))
 aa.log.results$multivariateNormality
 #nope
 
 #what about centered log tranformation?
-aa.tidy2 <- aa.tidy %>% mutate_at(vars(-expvars), ~.+0.0001)
+aa.tidy2 <- aa %>% mutate_at(vars(-expvars), ~.+0.0001)
 aa.clr <- clr(aa.tidy2 %>% select(-expvars))
 aa.clr.out <- mvn(aa.clr)
 aa.clr.out$multivariateNormality
 ```
 
-
 # Amino Acid RDA
 
 A brief description of how RDA works from Hervé et al:
 
->In the multivariate framework, we consider Redundancy Analysis (RDA). The analysis consists of two steps. First we fit a multivariate linear regression between the chemical data and the controlled variables. Second we perform two PCAs. The ‘constrained PCA’ is applied on the fitted values of the regression and summarizes the variation of the
-chemical data explained by the controlled variables. The ‘unconstrained PCA’ is applied on the residuals of the regression and summarizes the variation that is not related to the controlled variables.
+> In the multivariate framework, we consider Redundancy Analysis (RDA).
+> The analysis consists of two steps.
+> First we fit a multivariate linear regression between the chemical data and the controlled variables.
+> Second we perform two PCAs.
+> The 'constrained PCA' is applied on the fitted values of the regression and summarizes the variation of the chemical data explained by the controlled variables.
+> The 'unconstrained PCA' is applied on the residuals of the regression and summarizes the variation that is not related to the controlled variables.
 
-1. Fit the RDA model
+1.  Fit the RDA model
 
 ```{r}
 aa.RDA <- rda(aa.scaled %>% select(-expvars) ~ precip * temp, data = aa.scaled)
 ```
 
-2. How much total variance does the experimental design explain?
+2.  How much total variance does the experimental design explain?
 
 ```{r}
 MVA.synt(aa.RDA)
 ```
-The experimental design (temperature and precipitation and their interaction) explains 31.08% of the total variance in amino acids.  The first RDA axis explains 89.81% of that variance.
 
-3. Test for significance that this amount of explained variance is higher than the null hypothesis of no effect of the experimental design:
+The experimental design (temperature and precipitation and their interaction) explains 31.08% of the total variance in amino acids.
+The first RDA axis explains 89.81% of that variance.
+
+3.  Test for significance that this amount of explained variance is higher than the null hypothesis of no effect of the experimental design:
 
 ```{r}
 anova(aa.RDA)
 ```
+
 There is a significant global effect of the experimental design.
 
-4. Then we test for significance of individual factors and interaction terms:
+4.  Then we test for significance of individual factors and interaction terms:
 
 ```{r}
 MVA.anova(aa.RDA)
 ```
-Only precipitation is significant. The interaction is marginally significatn (p = 0.072)
 
+Only precipitation is significant.
+The interaction is marginally significatn (p = 0.072)
 
 ## Plot:
 
@@ -164,41 +170,46 @@ Only precipitation is significant. The interaction is marginally significatn (p 
 #          set = 2)
 ```
 
-All the amino acids except tryptophan are higher in wet plants.  Tryptophan concentration is correlated with dry:4º
+All the amino acids except tryptophan are higher in wet plants.
+Tryptophan concentration is correlated with dry:4º
 
 # Secondary Metabolite RDA
 
-1. Fit the RDA
+1.  Fit the RDA
 
 ```{r}
 gc.RDA <- rda(gc.scaled %>% select(-expvars) ~ precip * temp, data = gc.scaled)
 ```
 
-2. How much total variance does the experimental design explain?
+2.  How much total variance does the experimental design explain?
 
 ```{r}
 MVA.synt(gc.RDA)
 ```
-The experimental design (temperature and precipitation and their interaction) explains 24.45% of the total variance in secondary metabolites. Of that variance, the first RDA component explains 83.5%.
 
-3. Test for significance that this amount of explained variance is higher than the null hypothesis of no effect of the experimental design:
+The experimental design (temperature and precipitation and their interaction) explains 24.45% of the total variance in secondary metabolites.
+Of that variance, the first RDA component explains 83.5%.
+
+3.  Test for significance that this amount of explained variance is higher than the null hypothesis of no effect of the experimental design:
 
 ```{r}
 anova(gc.RDA)
 ```
-There is a significant global effect of the experimental design.  
 
-4. Then we test for significance of individual factors and interaction terms:
+There is a significant global effect of the experimental design.
+
+4.  Then we test for significance of individual factors and interaction terms:
 
 ```{r}
 MVA.anova(gc.RDA)
 ```
+
 Precipitation is significant with a significant interaction between precip and temperature.
 
-5. Pairwise permutation tests.  This is false discovery rate adjusted p-values for all pairwise comparisons of combinations of precip and temperature treatments. At high temperatures, there are more significant p-values for comparisons between wet and dry (the diagonal).
+5.  Pairwise permutation tests. This is false discovery rate adjusted p-values for all pairwise comparisons of combinations of precip and temperature treatments. At high temperatures, there are more significant p-values for comparisons between wet and dry (the diagonal).
 
 ```{r}
-pairwise.factorfit(gc.RDA, factor(gc.tidy$temp):factor(gc.tidy$precip))
+pairwise.factorfit(gc.RDA, factor(gc$temp):factor(gc$precip))
 ```
 
 ## Plots:
@@ -216,8 +227,9 @@ pairwise.factorfit(gc.RDA, factor(gc.tidy$temp):factor(gc.tidy$precip))
 #          set = 2)
 ```
 
-Succinic acid, fumaric acid, succinic acid, catalpol, myo-inositol, and sucrose are correlated with wet plants.  Citric acid, sorbitol and malic acid are correlated with dry plants.  Aucubin is correlated with 0 degree warming.
-
+Succinic acid, fumaric acid, succinic acid, catalpol, myo-inositol, and sucrose are correlated with wet plants.
+Citric acid, sorbitol and malic acid are correlated with dry plants.
+Aucubin is correlated with 0 degree warming.
 
 # Publication Quality Plots
 
@@ -232,58 +244,44 @@ gc.scores <- MVA.scores(gc.RDA)
 gc.score.data <- bind_cols(gc.scaled %>%
                              select(sample_id, precip, temp), gc.scores$coord) %>% 
   # Rename factors for better plotting labels
-  mutate(precip = fct_recode(precip, ambient = "wet", drought = "dry"),
+  mutate(precip = fct_recode(precip, drought = "dry"),
          temp = fct_recode(factor(temp), "ambient" = "0", "+ ~0.8 ºC" = "0.8",
                            "+ ~2.4 ºC" = "2.4", "+ ~4 ºC" = "4"))
 # Extract loading data
-gc.loading.data <- MVA.load(gc.RDA)$loads %>% 
-  rownames_to_column(var = "Metabolite") %>% 
-  # Abbreviate metabolites.  For most its just the first 3 letters
-  mutate(metab = str_trunc(Metabolite, width = 3, ellipsis = "") %>% toupper()) %>% 
-  mutate(metab = case_when(Metabolite == "malonic_acid" ~ "MALO",
-                           Metabolite == "succinic_acid" ~ "SUCC",
-                           Metabolite == "fructose_total" ~ "FRC",
-                           Metabolite == "glucose" ~ "GLC",
-                           Metabolite == "myo_inositol" ~ "INO",
-                           TRUE ~ metab)) %>%
+gc.loading.data <-
+  MVA.load(gc.RDA)$loads %>% 
+  rownames_to_column(var = "compound") %>% 
   # Did some crazy geometry to figure out how to put the labels in front of the arrows
   mutate(m = `Constr. comp. 2`/`Constr. comp. 1`,
          xplus = sqrt(1 / (1 + m^2)),
          yplus = abs(m * xplus)) %>% 
   mutate(xplus = ifelse(sign(`Constr. comp. 1`) == -1, xplus*-1, xplus),
          yplus = ifelse(sign(`Constr. comp. 2`) == -1, yplus*-1, yplus))
-```  
+```
 
 ```{r}
 # Extract scores
 aa.scores <- MVA.scores(aa.RDA)
 # Combine with experimental treatments
-aa.score.data <- bind_cols(aa.scaled %>%
-                             select(sample_id, precip, temp), aa.scores$coord) %>% 
+aa.score.data <-
+  bind_cols(aa.scaled %>%
+              select(sample_id, precip, temp), aa.scores$coord) %>% 
   # Rename factors
-  mutate(precip = fct_recode(precip, ambient = "wet", drought = "dry"),
+  mutate(precip = fct_recode(precip, drought = "dry"),
          temp = fct_recode(factor(temp), "ambient" = "0", "+ ~0.8 ºC" = "0.8",
                            "+ ~2.4 ºC" = "2.4", "+ ~4 ºC" = "4"))
-
-# Read in spreadsheet of abreviations for amino acids
-aa.code <- read_csv(here("data", "aa code.csv")) %>% 
-  mutate(Amino_acid_name = tolower(Amino_acid_name),
-         Abbreviation = toupper(Abbreviation))
-
 # Extract loadings
-aa.load.data <- MVA.load(aa.RDA)$loads %>% 
-  rownames_to_column(var = "AminoAcid") %>% 
-  mutate(AminoAcid = str_replace(AminoAcid, "_", " ")) %>%  #get rid of underscores
+aa.load.data <-
+  MVA.load(aa.RDA)$loads %>% 
+  rownames_to_column(var = "compound") %>% 
   # Do crazy geometry to figure out how to put labels in front of the arrows
   mutate(m = `Constr. comp. 2`/`Constr. comp. 1`,
          xplus = sqrt(1 / (1 + m^2)),
          yplus = abs(m * xplus)) %>% 
   mutate(xplus = ifelse(sign(`Constr. comp. 1`) == -1, xplus*-1, xplus),
          yplus = ifelse(sign(`Constr. comp. 2`) == -1, yplus*-1, yplus))
-
-# Join with aa abreviations
-aa.loading.data <- right_join(aa.code, aa.load.data, by = c("Amino_acid_name" = "AminoAcid"))
 ```
+
 ```{r}
 # shapes and colors for plots
 shapes <- c("ambient" = 22, "drought" = 24)
@@ -293,11 +291,12 @@ colors <- c("ambient" = "#55297B", "+ ~0.8 ºC" = "#64B22A", "+ ~2.4 ºC" = "#FB
 GC score plot:
 
 ```{r}
-gc.score.plot <- ggplot(gc.score.data, aes(x = `Constr. comp. 1`, y = `Constr. comp. 2`,
-                       fill = factor(temp),
-                       color = factor(temp),
-                       shape = fct_relevel(precip, "ambient"),
-                       linetype = factor(temp))) +
+gc.score.plot <-
+  ggplot(gc.score.data, aes(x = `Constr. comp. 1`, y = `Constr. comp. 2`,
+                            fill = factor(temp),
+                            color = factor(temp),
+                            shape = fct_relevel(precip, "ambient"),
+                            linetype = factor(temp))) +
   stat_chull(geom = "polygon", alpha = 0.4, color = "black") +
   geom_point(color = "black") +
   scale_shape_manual("Precipitation", values = shapes) +
@@ -313,8 +312,11 @@ gc.score.plot
 ```
 
 GC loading plot:
+
 ```{r}
-gc.cordata <- left_join(gc.score.data, gc.scaled %>% select(-precip, -temp)) %>% 
+gc.cordata <-
+  left_join(gc.score.data, gc.scaled %>%
+              select(-precip, -temp)) %>% 
   gather(-sample_id, -precip, -temp, -`Constr. comp. 1`, -`Constr. comp. 2`, key = compound, value = conc) %>% 
   group_by(compound) %>% 
   summarize(cor1 = cor(conc, `Constr. comp. 1`),
@@ -324,8 +326,8 @@ gc.cordata <- left_join(gc.score.data, gc.scaled %>% select(-precip, -temp)) %>%
   mutate(FDR.p1 = p.adjust(p1, method = "fdr"), FDR.p2 = p.adjust(p2, method = "fdr"),
          sig.1 = FDR.p1 < 0.05,
          sig.2 = FDR.p2 < 0.05,
-         sig.either = sig.1 | sig.2) %>% 
-  rename(Metabolite = compound)
+         sig.either = sig.1 | sig.2)
+
 gc.loading.data <- left_join(gc.loading.data, gc.cordata)
 ```
 
@@ -333,15 +335,13 @@ gc.loading.data <- left_join(gc.loading.data, gc.cordata)
 #function so 0 is printed with no decimal places on the axis
 scaleFun <- function(x){ifelse(x == 0, "0", x)}
 
-gc.loading.plot <- ggplot(gc.loading.data, aes(color = sig.either)) +
+gc.loading.plot <- 
+  ggplot(gc.loading.data, aes(color = sig.either)) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
-  # geom_text(aes(x = `Constr. comp. 1` + xplus * 0.05,
-  #               y = `Constr. comp. 2` + yplus * 0.05,
-  #               label = metab), size = 2.5) + 
   geom_label_repel(aes(x = `Constr. comp. 1`,
                        y = `Constr. comp. 2`,
-                       label = metab),
+                       label = compound),
                    min.segment.length = 0,
                    size = 2.4,
                    point.padding = 0.1, # should it reppel away from the tip of the arrow? NA = no
@@ -362,15 +362,15 @@ gc.loading.plot <- ggplot(gc.loading.data, aes(color = sig.either)) +
 gc.loading.plot
 ```
 
-
 AA score plot:
 
 ```{r}
-aa.score.plot <- ggplot(aa.score.data, aes(x = `Constr. comp. 1`, y = `Constr. comp. 2`,
-                       fill = factor(temp),
-                       color = factor(temp),
-                       shape = fct_relevel(precip, "ambient"),
-                       linetype = factor(temp))) +
+aa.score.plot <-
+  ggplot(aa.score.data, aes(x = `Constr. comp. 1`, y = `Constr. comp. 2`,
+                            fill = factor(temp),
+                            color = factor(temp),
+                            shape = fct_relevel(precip, "ambient"),
+                            linetype = factor(temp))) +
   stat_chull(geom = "polygon", alpha = 0.4, color = "black") +
   geom_point(color = "black") +
   scale_shape_manual("Precipitation", values = shapes) +
@@ -387,9 +387,11 @@ aa.score.plot
 ```
 
 AA loading plot:
+
 ```{r}
 # get correlation data between compounds and scores.
-aa.cordata <- left_join(aa.score.data, aa.scaled %>% select(-precip, -temp)) %>% 
+aa.cordata <-
+  left_join(aa.score.data, aa.scaled %>% select(-precip, -temp)) %>% 
   gather(-sample_id, -precip, -temp, -`Constr. comp. 1`, -`Constr. comp. 2`, key = compound, value = conc) %>% 
   group_by(compound) %>% 
   summarize(cor1 = cor(conc, `Constr. comp. 1`),
@@ -399,24 +401,20 @@ aa.cordata <- left_join(aa.score.data, aa.scaled %>% select(-precip, -temp)) %>%
   mutate(FDR.p1 = p.adjust(p1, method = "fdr"), FDR.p2 = p.adjust(p2, method = "fdr"),
          sig.1 = FDR.p1 < 0.05,
          sig.2 = FDR.p2 < 0.05,
-         sig.either = sig.1 | sig.2) %>% # are scaled compound concentrations correlated significantly with at least one axis?
-  rename(Amino_acid_name = compound) %>% 
-  mutate(Amino_acid_name = str_replace(Amino_acid_name, "_", " "))
+         sig.either = sig.1 | sig.2)
 
 #join with loading data
-aa.loading.data <- left_join(aa.loading.data, aa.cordata)
+aa.loading.data <- left_join(aa.load.data, aa.cordata)
 ```
 
 ```{r}
-aa.loading.plot <- ggplot(aa.loading.data, aes(color = sig.either)) +
+aa.loading.plot <-
+  ggplot(aa.loading.data, aes(color = sig.either)) +
   geom_segment(aes(x = 0, y = 0, xend = `Constr. comp. 1`, yend = `Constr. comp. 2`),
                arrow = arrow(length = unit(0.02, "npc")), alpha = 0.7) +
-  # geom_text(aes(x = `Constr. comp. 1` + xplus * 0.02,
-  #               y = `Constr. comp. 2` + yplus * 0.02,
-  #               label = Abbreviation), size = 2.5) +
   geom_label_repel(aes(x = `Constr. comp. 1`,
                        y = `Constr. comp. 2`,
-                       label = Abbreviation),
+                       label = compound),
                    min.segment.length = 0,
                    size = 2.4,
                    point.padding = 0.1,
@@ -440,20 +438,40 @@ aa.loading.plot
 ```{r}
 library(cowplot)
 leg <- get_legend(aa.score.plot)
-fig <- plot_grid(gc.score.plot + theme(legend.position = "none"),
-                 gc.loading.plot,
-                 aa.score.plot + theme(legend.position = "none"),
-                 aa.loading.plot,
-                 ncol = 2, nrow = 2,
-                 labels = c("(a)", "(b)", "(c)", "(d)"),
-                 vjust = 1,
-                 axis = "lb", align = "v")
+fig <-
+  plot_grid(gc.score.plot + theme(legend.position = "none"),
+            gc.loading.plot,
+            aa.score.plot + theme(legend.position = "none"),
+            aa.loading.plot,
+            ncol = 2, nrow = 2,
+            labels = c("(a)", "(b)", "(c)", "(d)"),
+            vjust = 1,
+            axis = "lb", align = "v")
 
 fig2 <- plot_grid(leg, fig, rel_widths = c(1, 5), axis = "t", align = "h")
-# save_plot(here("figs", "fig2.png"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
+
 save_plot(here("figs", "fig2-repel.jpg"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
 save_plot(here("figs", "fig2-repel.pdf"), fig2, ncol = 3, nrow = 2, base_height = 3.5)
 ```
 
+# Print ANOVA outputs for ease of editing manuscript
 
+```{r}
+sink(here("analysis", "ANOVA output.txt"))
+cat("**Amino Acids**\n")
+aa.out <- MVA.synt(aa.RDA)
+glue("Experimental design explains {aa.out[[1]]$tab$Proportion[1] %>% round(2)}% of variance")
+cat("\nGlobal Significance of RDA:\n")
+anova(aa.RDA)
+cat("\n\nSignificance of treatments and interaction\n\n")
+MVA.anova(aa.RDA)
 
+cat("\n~~~~~~~~~~\n**GC Compounds**\n")
+gc.out <- MVA.synt(gc.RDA)
+glue("Experimental design explains {gc.out[[1]]$tab$Proportion[1] %>% round(2)}% of variance")
+cat("\nGlobal Significance of RDA:\n\n")
+anova(gc.RDA)
+cat("\nSignificance of treatments and interaction:\n\n")
+MVA.anova(gc.RDA)
+sink()
+```
