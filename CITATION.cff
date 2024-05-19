@@ -37,6 +37,8 @@ authors:
       Department of Chemical Ecology, Bielefeld University,
       Bielefeld, Germany
 repository-code: 'https://github.com/Aariq/Plantago-BACE'
+doi: 10.5281/zenodo.11217918
+version: v1.0.0
 abstract: >-
   Code and data for nutrient analysis and figure 2 from:
 
