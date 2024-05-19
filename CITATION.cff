@@ -1,0 +1,50 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: >-
+  Code for  "Combined impacts of prolonged drought and
+  warming on plant size and foliar chemistry"
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Eric R
+    family-names: Scott
+    email: scottericr@gmail.com
+    affiliation: >-
+      Department of Biology, Tufts University, Medford, MA,
+      USA
+    orcid: 'https://orcid.org/0000-0002-7430-7879'
+  - given-names: Colin M
+    family-names: Orians
+    email: Colin.Orians@tufts.edu
+    affiliation: 'Department of Biology, Tufts University'
+  - given-names: Rabea
+    family-names: Schweiger
+    affiliation: >-
+      Department of Chemical Ecology, Bielefeld University,
+      Bielefeld, Germany
+  - given-names: Jeffrey S
+    family-names: Dukes
+    affiliation: >-
+      Department of Forestry and Natural Resources, Purdue
+      University, West Lafayette, IN, USA
+  - given-names: Caroline
+    family-names: Müller
+    affiliation: >-
+      Department of Chemical Ecology, Bielefeld University,
+      Bielefeld, Germany
+repository-code: 'https://github.com/Aariq/Plantago-BACE'
+abstract: >-
+  Code and data for nutrient analysis and figure 2 from:
+
+
+  Orians CM, Schweiger R, Dukes JS, et al (2019) Combined
+  impacts of prolonged drought and warming on plant size and
+  foliar chemistry. Annals of Botany 124:41–52.
+  https://doi.org/10.1093/aob/mcz004
+license: MIT
+version: 1.0.0
+date-released: '2024-05-19'
