@@ -1,4 +1,8 @@
 
+
+[![DOI](https://zenodo.org/badge/379939694.svg)](https://zenodo.org/doi/10.5281/zenodo.11217918)
+
+
 # Plantago BACE
 
 <!-- badges: start -->
